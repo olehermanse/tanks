@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tanks</title>
+  <style>
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px;
+  background: #1b1f27;
+  color: #e6e9ef;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+h1 {
+  margin: 0;
+  font-size: 1.6rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.layout {
+  display: flex;
+  gap: 16px;
+  align-items: stretch;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 380px;
+}
+
+.editor {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.editor label {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.p1 label { color: #4da3ff; }
+.p2 label { color: #ff6b6b; }
+.p3 label { color: #5ddc7a; }
+.p4 label { color: #ffd95e; }
+
+.editor textarea {
+  flex: 1;
+  min-height: 0;
+  resize: none;
+  padding: 10px;
+  background: #11141b;
+  color: #e6e9ef;
+  border: 2px solid #3d4556;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  tab-size: 2;
+}
+
+.editor textarea:focus { outline: none; }
+.p1 textarea:focus { border-color: #4da3ff; }
+.p2 textarea:focus { border-color: #ff6b6b; }
+.p3 textarea:focus { border-color: #5ddc7a; }
+.p4 textarea:focus { border-color: #ffd95e; }
+
+.editor textarea[readonly] {
+  background: #181c25;
+  color: #9aa3b2;
+  cursor: not-allowed;
+}
+
+.error {
+  min-height: 1.2em;
+  font-size: 0.8rem;
+  color: #ff8a8a;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre-wrap;
+}
+
+.stage {
+  position: relative;
+  display: inline-block;
+}
+
+canvas {
+  display: block;
+  background: #2b3140;
+  border: 2px solid #3d4556;
+  border-radius: 6px;
+}
+
+.play {
+  position: absolute;
+  left: 50%;
+  top: 60%;
+  transform: translate(-50%, -50%);
+  padding: 16px 40px;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #1b1f27;
+  background: #4dd2a6;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+}
+
+.play:hover { background: #6ee7bd; }
+.play.hidden { display: none; }
+
+.hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #9aa3b2;
+  max-width: 820px;
+  text-align: center;
+}
+
+.hint code {
+  color: #e6e9ef;
+  background: #11141b;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.disclaimer {
+  margin-top: 8px;
+  font-size: 0.75rem;
+  color: #6b7482;
+  text-align: center;
+}
+
+.disclaimer a {
+  color: #9aa3b2;
+}
+  </style>
+</head>
+<body>
+  <h1>Tanks</h1>
+  <div class="layout">
+    <div class="column">
+      <div class="editor p1">
+        <label for="ai1">Player 1 AI</label>
+        <textarea id="ai1" spellcheck="false"></textarea>
+        <div class="error" id="err1"></div>
+      </div>
+      <div class="editor p3">
+        <label for="ai3">Player 3 AI</label>
+        <textarea id="ai3" spellcheck="false"></textarea>
+        <div class="error" id="err3"></div>
+      </div>
+    </div>
+    <div class="stage">
+      <canvas id="game"></canvas>
+      <button id="play" class="play">&#9654; Play</button>
+    </div>
+    <div class="column">
+      <div class="editor p2">
+        <label for="ai2">Player 2 AI</label>
+        <textarea id="ai2" spellcheck="false"></textarea>
+        <div class="error" id="err2"></div>
+      </div>
+      <div class="editor p4">
+        <label for="ai4">Player 4 AI</label>
+        <textarea id="ai4" spellcheck="false"></textarea>
+        <div class="error" id="err4"></div>
+      </div>
+    </div>
+  </div>
+  <p class="hint">
+    Each snippet is the body of a function called once per round. It receives
+    <code>me</code>, <code>enemy</code> (nearest living enemy), <code>enemies</code>
+    (all living enemies), <code>bullets</code> (in flight) and <code>grid</code>, and
+    must return an array of two actions, carried out one after the other. Each action is
+    <code>"left"</code>, <code>"right"</code>, <code>"forward"</code> or <code>"fire"</code>.
+    Anything else means wait for that step. Bullets fly 4 squares per step and
+    reach 10 squares. Last tank standing wins.
+  </p>
+  <footer class="disclaimer">
+    This app was written with the help of AI / LLMs (Claude Code + Fable 5.1).
+    Source code: <a href="https://github.com/olehermanse/tanks">github.com/olehermanse/tanks</a>
+  </footer>
+  <script>
+'use strict';
+
+// Pure game rules, shared by the browser UI (game.js) and any headless
+// simulation. No DOM access in here.
+
+const Engine = (() => {
+  const GRID = 20;
+  const MAX_HP = 3;
+  const ACTIONS_PER_TURN = 2;
+  const BULLET_SPEED = 4;  // cells per sub-step
+  const BULLET_RANGE = 10; // cells before a bullet expires
+  const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]]; // up, right, down, left
+  const ACTIONS = ['left', 'right', 'forward', 'fire'];
+
+  // Start positions form a pinwheel: rotationally symmetric, facing the
+  // centre, and no two tanks share a row or column at the start.
+  const PLAYERS = [
+    { name: 'P1', color: '#4da3ff', x: 2, y: 1, dir: 2 },
+    { name: 'P2', color: '#ff6b6b', x: GRID - 2, y: 2, dir: 3 },
+    { name: 'P3', color: '#5ddc7a', x: 1, y: GRID - 3, dir: 1 },
+    { name: 'P4', color: '#ffd95e', x: GRID - 3, y: GRID - 2, dir: 0 },
+  ];
+
+  function createState() {
+    return {
+      tanks: PLAYERS.map((p, id) => ({ id, ...p, hp: MAX_HP })),
+      bullets: [], // { x, y, dir, shooter, traveled }
+    };
+  }
+
+  const inBounds = (x, y) => x >= 0 && x < GRID && y >= 0 && y < GRID;
+  const alive = (tanks) => tanks.filter((t) => t.hp > 0);
+
+  function snapshot(t) {
+    return { name: t.name, x: t.x, y: t.y, dir: t.dir, hp: t.hp };
+  }
+
+  // Arguments handed to a player's AI: (me, enemy, enemies, bullets, grid).
+  // `enemy` is the nearest living opponent (Manhattan distance), or null.
+  function aiArgs(state, i) {
+    const { tanks } = state;
+    const me = tanks[i];
+    const enemies = alive(tanks).filter((t) => t !== me).map(snapshot);
+    let enemy = null, best = Infinity;
+    for (const e of enemies) {
+      const d = Math.abs(e.x - me.x) + Math.abs(e.y - me.y);
+      if (d < best) { best = d; enemy = e; }
+    }
+    const bullets = state.bullets.map((b) => ({
+      x: b.x, y: b.y, dir: b.dir, owner: tanks[b.shooter].name, range: BULLET_RANGE - b.traveled,
+    }));
+    const grid = { size: GRID, bulletSpeed: BULLET_SPEED, bulletRange: BULLET_RANGE };
+    return [snapshot(me), enemy, enemies, bullets, grid];
+  }
+
+  // Normalise whatever an AI returned into an array of valid actions / null.
+  function normaliseActions(result) {
+    if (!Array.isArray(result)) result = [result];
+    const out = [];
+    for (let k = 0; k < ACTIONS_PER_TURN; k++) {
+      out.push(ACTIONS.includes(result[k]) ? result[k] : null);
+    }
+    return out;
+  }
+
+  // Compute one sub-step without mutating. `actions[i]` is the action of
+  // tanks[i] (or null). Returns per-tank from/to poses, the path every bullet
+  // takes this step (for animation) and the bullets that survive the step.
+  function planStep(state, actions) {
+    const { tanks } = state;
+    const from = tanks.map((t) => ({ x: t.x, y: t.y, dir: t.dir }));
+    const to = tanks.map((t) => ({ x: t.x, y: t.y, dir: t.dir }));
+    const living = tanks.map((t) => t.hp > 0);
+
+    tanks.forEach((t, i) => {
+      if (!living[i]) return;
+      const a = actions[i];
+      if (a === 'left') to[i].dir = (t.dir + 3) % 4;
+      if (a === 'right') to[i].dir = (t.dir + 1) % 4;
+      if (a === 'forward') {
+        const [dx, dy] = DIRS[t.dir];
+        if (inBounds(t.x + dx, t.y + dy)) { to[i].x = t.x + dx; to[i].y = t.y + dy; }
+      }
+    });
+
+    // Rule 1: never enter a cell another living tank occupied at step start.
+    // (This also forbids swapping places.)
+    const key = (p) => `${p.x},${p.y}`;
+    const startCells = new Map();
+    tanks.forEach((t, i) => { if (living[i]) startCells.set(key(from[i]), i); });
+    tanks.forEach((t, i) => {
+      if (!living[i]) return;
+      const owner = startCells.get(key(to[i]));
+      if (owner !== undefined && owner !== i) { to[i].x = from[i].x; to[i].y = from[i].y; }
+    });
+
+    // Rule 2: two or more tanks wanting the same cell all stay put.
+    const wanted = new Map();
+    tanks.forEach((t, i) => {
+      if (!living[i]) return;
+      const k = key(to[i]);
+      wanted.set(k, (wanted.get(k) || 0) + 1);
+    });
+    tanks.forEach((t, i) => {
+      if (!living[i]) return;
+      if (wanted.get(key(to[i])) > 1) { to[i].x = from[i].x; to[i].y = from[i].y; }
+    });
+
+    // Bullets: existing ones keep flying, firing tanks spawn new ones at
+    // their own cell. Each bullet advances BULLET_SPEED cells this step and
+    // hits the first living tank (other than its shooter) that occupies one
+    // of the cells it crosses at any point during the step, i.e. either the
+    // cell the tank is leaving or the cell it ends up in. Bullets vanish when
+    // they leave the board or have travelled BULLET_RANGE cells.
+    const inFlight = state.bullets.map((b) => ({ ...b }));
+    tanks.forEach((t, i) => {
+      if (living[i] && actions[i] === 'fire') {
+        inFlight.push({ x: t.x, y: t.y, dir: t.dir, shooter: i, traveled: 0 });
+      }
+    });
+
+    const shells = [];   // animation paths for this step
+    const bullets = [];  // bullets still alive after this step
+    inFlight.forEach((b) => {
+      const [dx, dy] = DIRS[b.dir];
+      let x = b.x, y = b.y, victim = null, gone = false;
+      for (let n = 0; n < BULLET_SPEED && b.traveled < BULLET_RANGE; n++) {
+        x += dx; y += dy;
+        if (!inBounds(x, y)) { gone = true; break; }
+        b.traveled += 1;
+        for (let j = 0; j < tanks.length; j++) {
+          if (j === b.shooter || !living[j]) continue;
+          const occupies = (to[j].x === x && to[j].y === y) || (from[j].x === x && from[j].y === y);
+          if (occupies) { victim = j; break; }
+        }
+        if (victim !== null) break;
+      }
+      const alive = !gone && victim === null && b.traveled < BULLET_RANGE;
+      shells.push({ shooter: b.shooter, dir: b.dir, sx: b.x, sy: b.y, ex: x, ey: y, hit: victim !== null, victim, alive });
+      if (alive) bullets.push({ x, y, dir: b.dir, shooter: b.shooter, traveled: b.traveled });
+    });
+
+    return { from, to, shells, bullets };
+  }
+
+  // Commit a planned step. Returns the winner tank, 'draw', or null.
+  function applyStep(state, plan) {
+    const { tanks } = state;
+    tanks.forEach((t, i) => {
+      t.x = plan.to[i].x; t.y = plan.to[i].y; t.dir = plan.to[i].dir;
+    });
+    plan.shells.forEach((s) => { if (s.hit) tanks[s.victim].hp -= 1; });
+    state.bullets = plan.bullets;
+    const left = alive(tanks);
+    if (left.length === 1) return left[0];
+    if (left.length === 0) return 'draw';
+    return null;
+  }
+
+  return {
+    GRID, MAX_HP, ACTIONS_PER_TURN, BULLET_SPEED, BULLET_RANGE, DIRS, ACTIONS, PLAYERS,
+    createState, alive, snapshot, aiArgs, normaliseActions, planStep, applyStep,
+  };
+})();
+
+
+// ---------- Config ----------
+const { GRID, MAX_HP, ACTIONS_PER_TURN, DIRS, PLAYERS, BULLET_SPEED } = Engine;
+const CELL = 32;       // pixels per cell
+const HUD = 120;       // height of the HUD strip above the grid
+const STEP_MS = 500;   // length of each resolve sub-step (deciding is instant)
+const EXPLOSION_MS = 350; // how long a hit flash stays on screen
+
+const RANDOM_AI = `const NAME = "Random";
+const actions = ["left", "right", "forward", "fire"];
+const pick = () => actions[Math.floor(Math.random() * actions.length)];
+return [pick(), pick()];
+`;
+
+const SPINNER_AI = `const NAME = "Spinner";
+return ["left", "left"];
+`;
+
+const TURRET_AI = `const NAME = "Turret";
+const pick = () => (Math.random() < 0.3 ? "fire" : "right");
+return [pick(), pick()];
+`;
+
+const STARTER_AI = `const NAME = "Your AI";
+// Write your own AI here! You get me, enemy, enemies, bullets and grid,
+// and must return two actions from "left", "right", "forward", "fire".
+// This one drives along the walls and fires every other step.
+const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+const [dx, dy] = DIRS[me.dir];
+const nx = me.x + dx, ny = me.y + dy;
+const blocked = nx < 0 || ny < 0 || nx >= grid.size || ny >= grid.size;
+return blocked ? ["right", "forward"] : ["forward", "fire"];
+`;
+
+const canvas = document.getElementById('game');
+canvas.width = GRID * CELL;
+canvas.height = GRID * CELL + HUD;
+const ctx = canvas.getContext('2d');
+
+const playBtn = document.getElementById('play');
+const editors = PLAYERS.map((p, i) => document.getElementById(`ai${i + 1}`));
+const errBoxes = PLAYERS.map((p, i) => document.getElementById(`err${i + 1}`));
+const DEFAULT_AIS = [SPINNER_AI, RANDOM_AI, TURRET_AI, STARTER_AI];
+editors.forEach((ed, i) => { ed.value = DEFAULT_AIS[i]; });
+
+// The first line of every snippet must be: const NAME = "...";
+const NAME_RE = /^\s*const\s+NAME\s*=\s*(["'`])(.*?)\1\s*;?\s*$/;
+
+function parseName(code) {
+  const firstLine = code.split('\n')[0];
+  const m = firstLine.match(NAME_RE);
+  return m ? m[2].trim() : null;
+}
+
+function applyNames() {
+  editors.forEach((ed, i) => {
+    tanks[i].name = parseName(ed.value) || PLAYERS[i].name;
+  });
+}
+
+editors.forEach((ed) => ed.addEventListener('input', () => { if (!running) applyNames(); }));
+
+// ---------- State ----------
+let state, tanks, stepStart, winner, plan;
+let explosions = []; // { victim, at } hit flashes that follow the hit tank
+let actions = [];       // actions[i] = [a1, a2] for tanks[i]
+let step = 0;           // which of the two actions is being resolved
+let running = false;
+let ais = PLAYERS.map(() => null);
+
+function reset() {
+  state = Engine.createState();
+  tanks = state.tanks;
+  applyNames();
+  actions = tanks.map(() => []);
+  stepStart = performance.now();
+  step = 0;
+  plan = null;
+  explosions = [];
+  winner = null;
+}
+
+// ---------- AI ----------
+function compileAIs() {
+  let ok = true;
+  ais = editors.map((ed, i) => {
+    errBoxes[i].textContent = '';
+    if (!parseName(ed.value)) {
+      errBoxes[i].textContent = 'First line must be: const NAME = "Your AI name";';
+      ok = false;
+      return null;
+    }
+    try {
+      return new Function('me', 'enemy', 'enemies', 'bullets', 'grid', ed.value);
+    } catch (err) {
+      errBoxes[i].textContent = `Compile error: ${err.message}`;
+      ok = false;
+      return null;
+    }
+  });
+  return ok;
+}
+
+function decideActions() {
+  tanks.forEach((t, i) => {
+    actions[i] = [];
+    if (t.hp <= 0 || !ais[i]) return;
+    try {
+      const result = ais[i](...Engine.aiArgs(state, i));
+      actions[i] = Engine.normaliseActions(result);
+    } catch (err) {
+      errBoxes[i].textContent = `Runtime error: ${err.message}`;
+    }
+  });
+}
+
+function stepActions() {
+  return tanks.map((t, i) => actions[i][step] || null);
+}
+
+// ---------- Play button ----------
+function setLocked(locked) {
+  editors.forEach((e) => { e.readOnly = locked; });
+}
+
+playBtn.addEventListener('click', () => {
+  if (running) return;
+  if (!compileAIs()) return;
+  setLocked(true);
+  playBtn.classList.add('hidden');
+  reset();
+  beginRound(performance.now());
+  running = true;
+});
+
+// Ask every AI for its actions and start the first sub-step immediately.
+function beginRound(now) {
+  decideActions();
+  step = 0;
+  startStep(now);
+}
+
+// Plan the current sub-step and schedule a flash for every hit at the moment
+// the bullet actually reaches its victim.
+function startStep(now) {
+  plan = Engine.planStep(state, stepActions());
+  stepStart = now;
+  plan.shells.forEach((sh) => {
+    if (!sh.hit) return;
+    const cells = Math.abs(sh.ex - sh.sx) + Math.abs(sh.ey - sh.sy);
+    explosions.push({ victim: sh.victim, at: now + (cells / BULLET_SPEED) * STEP_MS });
+  });
+}
+
+function finish() {
+  running = false;
+  setLocked(false);
+  playBtn.textContent = '▶ Play again';
+  playBtn.classList.remove('hidden');
+}
+
+// ---------- Helpers ----------
+const lerp = (a, b, t) => a + (b - a) * t;
+const smooth = (t) => t * t * (3 - 2 * t);
+
+function tankPose(i, p) {
+  const t = tanks[i];
+  if (!plan) return { x: t.x, y: t.y, angle: t.dir * Math.PI / 2 };
+  const from = plan.from[i], to = plan.to[i];
+  const e = smooth(p);
+  let delta = (to.dir - from.dir + 4) % 4;
+  if (delta === 3) delta = -1;
+  return {
+    x: lerp(from.x, to.x, e),
+    y: lerp(from.y, to.y, e),
+    angle: (from.dir + delta * e) * Math.PI / 2,
+  };
+}
+
+// ---------- Drawing ----------
+function drawGrid() {
+  ctx.fillStyle = '#2b3140';
+  ctx.fillRect(0, HUD, GRID * CELL, GRID * CELL);
+  ctx.strokeStyle = '#3a4252';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let i = 0; i <= GRID; i++) {
+    ctx.moveTo(i * CELL + 0.5, HUD);
+    ctx.lineTo(i * CELL + 0.5, HUD + GRID * CELL);
+    ctx.moveTo(0, HUD + i * CELL + 0.5);
+    ctx.lineTo(GRID * CELL, HUD + i * CELL + 0.5);
+  }
+  ctx.stroke();
+}
+
+function drawTank(i, p) {
+  const t = tanks[i];
+  if (t.hp <= 0) return;
+  const pose = tankPose(i, p);
+  const cx = (pose.x + 0.5) * CELL;
+  const cy = HUD + (pose.y + 0.5) * CELL;
+  const s = CELL / 48; // sprite was designed for 48px cells
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(pose.angle); // angle 0 = facing up
+  ctx.scale(s, s);
+  // treads
+  ctx.fillStyle = '#20242c';
+  ctx.fillRect(-18, -16, 8, 32);
+  ctx.fillRect(10, -16, 8, 32);
+  // hull
+  ctx.fillStyle = t.color;
+  ctx.fillRect(-12, -14, 24, 28);
+  // turret + barrel
+  ctx.fillStyle = '#e6e9ef';
+  ctx.beginPath();
+  ctx.arc(0, 0, 7, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillRect(-2.5, -24, 5, 24);
+  ctx.restore();
+
+  drawNameTag(t, cx, cy, pose.y);
+}
+
+// Name label above the tank (below it on the top row so it stays on the board).
+function drawNameTag(t, cx, cy, row) {
+  ctx.font = 'bold 11px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  const name = t.name.length > 14 ? t.name.slice(0, 13) + '\u2026' : t.name;
+  const w = ctx.measureText(name).width;
+  const x = Math.min(Math.max(cx, w / 2 + 2), canvas.width - w / 2 - 2);
+  const y = row < 0.5 ? cy + CELL / 2 + 12 : cy - CELL / 2 - 4;
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
+  ctx.lineJoin = 'round';
+  ctx.strokeText(name, x, y);
+  ctx.fillStyle = t.color;
+  ctx.fillText(name, x, y);
+}
+
+function drawBullet(cx, cy, dir, alpha = 1) {
+  const [dx, dy] = DIRS[dir];
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  // short streak behind the bullet to show its direction
+  ctx.strokeStyle = 'rgba(255, 242, 176, 0.5)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(cx - dx * 8, cy - dy * 8);
+  ctx.lineTo(cx, cy);
+  ctx.stroke();
+  ctx.fillStyle = '#fff2b0';
+  ctx.beginPath();
+  ctx.arc(cx, cy, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+// Bullets always move at BULLET_SPEED cells per step. Ones that hit vanish at
+// the victim (the flash is drawn separately); ones that expire or leave the
+// board keep flying at full speed while fading out.
+function drawShell(s, p) {
+  const [dx, dy] = DIRS[s.dir];
+  const cells = Math.abs(s.ex - s.sx) + Math.abs(s.ey - s.sy);
+  const arrive = cells / BULLET_SPEED; // fraction of the step when the path ends
+  const travelled = p * BULLET_SPEED;
+  if (s.hit && p >= arrive) return;
+  const alpha = s.hit || s.alive ? 1 : Math.min(1, (1 - p) / 0.3);
+  drawBullet((s.sx + dx * travelled + 0.5) * CELL, HUD + (s.sy + dy * travelled + 0.5) * CELL, s.dir, alpha);
+}
+
+// Flashes are drawn on the hit tank's current (animated) position so they
+// move with it rather than sitting on the square where the bullet struck.
+function drawExplosions(now, p) {
+  explosions = explosions.filter((e) => now - e.at < EXPLOSION_MS);
+  explosions.forEach((e) => {
+    if (now < e.at) return;
+    const f = (now - e.at) / EXPLOSION_MS;
+    const pose = tankPose(e.victim, p);
+    ctx.fillStyle = `rgba(255, 150, 40, ${1 - f})`;
+    ctx.beginPath();
+    ctx.arc((pose.x + 0.5) * CELL, HUD + (pose.y + 0.5) * CELL, 8 + f * 20, 0, Math.PI * 2);
+    ctx.fill();
+  });
+}
+
+function drawSemicircle(p) {
+  const cx = canvas.width / 2;
+  const cy = 82;
+  const r = 44;
+  const color = running ? '#ffb347' : '#4dd2a6';
+
+  ctx.lineWidth = 12;
+  ctx.lineCap = 'butt';
+  ctx.strokeStyle = '#3d4556';
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, Math.PI, 2 * Math.PI);
+  ctx.stroke();
+
+  ctx.strokeStyle = color;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, Math.PI, Math.PI + Math.PI * p);
+  ctx.stroke();
+
+  ctx.fillStyle = color;
+  ctx.font = 'bold 16px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  const label = running ? `STEP ${step + 1}/${ACTIONS_PER_TURN}` : 'READY';
+  ctx.fillText(label, cx, cy + 2);
+}
+
+const ACTION_LABEL = { left: 'Turn left', right: 'Turn right', forward: 'Forward', fire: 'Fire' };
+
+// Two players per side of the HUD, one row each.
+function drawPlayerPanel(i, side, row) {
+  const t = tanks[i];
+  const x = side === 'left' ? 14 : canvas.width - 14;
+  const y = 14 + row * 52;
+  const dead = t.hp <= 0;
+  ctx.textAlign = side;
+  ctx.textBaseline = 'top';
+
+  ctx.fillStyle = dead ? '#5b6372' : t.color;
+  ctx.font = 'bold 16px system-ui, sans-serif';
+  const name = t.name.length > 14 ? t.name.slice(0, 13) + '\u2026' : t.name;
+  ctx.fillText(name, x, y);
+
+  // HP pips next to the name
+  const nameW = ctx.measureText(name).width + 10;
+  for (let k = 0; k < MAX_HP; k++) {
+    const px = side === 'left' ? x + nameW + k * 15 : x - nameW - 11 - k * 15;
+    ctx.fillStyle = k < t.hp ? t.color : '#3d4556';
+    ctx.fillRect(px, y + 3, 11, 11);
+  }
+
+  if (!running) return;
+  ctx.font = '13px system-ui, sans-serif';
+  if (dead) {
+    ctx.fillStyle = '#5b6372';
+    ctx.fillText('Destroyed', x, y + 22);
+    return;
+  }
+  const parts = [];
+  for (let k = 0; k < ACTIONS_PER_TURN; k++) {
+    const a = actions[i][k];
+    parts.push([`${k + 1}. ${a ? ACTION_LABEL[a] : 'Wait'}`, k]);
+  }
+  if (side === 'right') parts.reverse();
+  let cursor = x;
+  parts.forEach(([text, k]) => {
+    const active = k === step;
+    ctx.fillStyle = active ? '#ffd95e' : '#9aa3b2';
+    ctx.fillText(text, cursor, y + 22);
+    const w = ctx.measureText(text).width + 12;
+    cursor += side === 'left' ? w : -w;
+  });
+}
+
+function drawOverlay() {
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+  ctx.fillRect(0, HUD, canvas.width, GRID * CELL);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const cy = HUD + GRID * CELL / 2;
+  // Keep the banner clear of the Play button, which sits just below centre.
+  ctx.font = 'bold 36px system-ui, sans-serif';
+  if (winner === 'draw') {
+    ctx.fillStyle = '#e6e9ef';
+    ctx.fillText('Draw!', canvas.width / 2, cy - 110);
+  } else {
+    ctx.fillStyle = winner.color;
+    ctx.fillText(`${winner.name} wins!`, canvas.width / 2, cy - 110);
+  }
+}
+
+function draw(p, now) {
+  ctx.fillStyle = '#1f2430';
+  ctx.fillRect(0, 0, canvas.width, HUD);
+  drawGrid();
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, HUD, GRID * CELL, GRID * CELL);
+  ctx.clip(); // bullets flying off the board must not spill into the HUD
+  if (plan) plan.shells.forEach((s) => drawShell(s, p));
+  else state.bullets.forEach((b) => drawBullet((b.x + 0.5) * CELL, HUD + (b.y + 0.5) * CELL, b.dir));
+  ctx.restore();
+  tanks.forEach((t, i) => drawTank(i, p));
+  drawExplosions(now, p);
+  drawSemicircle(p);
+  drawPlayerPanel(0, 'left', 0);
+  drawPlayerPanel(2, 'left', 1);
+  drawPlayerPanel(1, 'right', 0);
+  drawPlayerPanel(3, 'right', 1);
+  if (winner) drawOverlay();
+}
+
+// ---------- Main loop ----------
+function frame(now) {
+  let p = running ? (now - stepStart) / STEP_MS : 0;
+  if (running && p >= 1) {
+    winner = Engine.applyStep(state, plan);
+    plan = null;
+    if (winner) {
+      finish();
+    } else if (step + 1 < ACTIONS_PER_TURN) {
+      step += 1;
+      startStep(now);
+    } else {
+      beginRound(now);
+    }
+    p = 0;
+  }
+  draw(Math.min(Math.max(p, 0), 1), now);
+  requestAnimationFrame(frame);
+}
+
+reset();
+requestAnimationFrame(frame);
+  </script>
+</body>
+</html>
